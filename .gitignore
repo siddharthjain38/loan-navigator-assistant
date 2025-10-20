@@ -4,7 +4,6 @@ __pycache__
 .env
 
 database/vector_store/
-database/loan_data/
 
 dataset/Loan_Policy-2020-1.pdf
 
