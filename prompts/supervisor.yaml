@@ -24,17 +24,36 @@ intelligent_routing_prompt: |
   - Customer-specific policy questions
 
   Routing Rules:
-  - Customer ID mentioned or data lookup needed → SQL_AGENT
-  - EMI calculations, loan amount scenarios → WHAT_IF_CALCULATOR  
-  - Policy questions, eligibility, documentation → POLICY_GURU
-  - Complex queries may need customer data first
+  - **SQL_AGENT** for existing data queries:
+    * Customer ID mentioned ("cust id 1900", "CUST123")
+    * Current/existing loan details ("current EMI", "my EMI", "show my loan")
+    * Data lookups ("loan amount for customer X", "payment history")
+    * Status checks ("loan status", "next due date")
+  
+  - **WHAT_IF_CALCULATOR** for hypothetical scenarios:
+    * New loan calculations ("calculate EMI for 50 lakhs")
+    * What-if scenarios ("if I extend tenure", "reduce EMI by X")
+    * Loan modification proposals ("finish loan in 1 year")
+    * Comparison scenarios ("compare 5yr vs 10yr tenure")
+  
+  - **POLICY_GURU** for rules and eligibility:
+    * Policy questions ("eligibility criteria", "documentation needed")
+    * Rule clarifications ("topup rules", "prepayment rules")
+    * General loan information (not customer-specific)
+
+  Key Distinction for EMI queries:
+  - "current EMI" / "my EMI" / "existing EMI" → SQL_AGENT (lookup existing data)
+  - "calculate EMI" / "what would EMI be" → WHAT_IF_CALCULATOR (hypothetical calculation)
 
   Examples:
-  - "Calculate EMI for 50 lakhs" → WHAT_IF_CALCULATOR, needs_customer_data: false (general calculation)
-  - "Customer CUST123 wants to finish loan in 1 year" → WHAT_IF_CALCULATOR, needs_customer_data: true (specific customer)
-  - "What is loan eligibility criteria" → POLICY_GURU, needs_customer_data: false (general policy)
-  - "Show loan details for customer CUST456" → SQL_AGENT, needs_customer_data: true (specific customer lookup)
-  - "My current EMI breakdown" → SQL_AGENT, needs_customer_data: true (personal data request)
+  - "current emi of cust id 1900" → SQL_AGENT, needs_customer_data: true (lookup existing EMI)
+  - "what is my current EMI" → SQL_AGENT, needs_customer_data: true (lookup existing data)
+  - "show loan details for customer CUST456" → SQL_AGENT, needs_customer_data: true (data lookup)
+  - "Calculate EMI for 50 lakhs" → WHAT_IF_CALCULATOR, needs_customer_data: false (new calculation)
+  - "what if I reduce tenure to 1 year" → WHAT_IF_CALCULATOR, needs_customer_data: true (modification scenario)
+  - "compare EMI for 10yr vs 20yr" → WHAT_IF_CALCULATOR, needs_customer_data: false (comparison)
+  - "What is loan eligibility criteria" → POLICY_GURU, needs_customer_data: false (policy question)
+  - "topup rules for my loan" → POLICY_GURU, needs_customer_data: true (customer-specific policy)
 
 # Out of scope response prompt for non-loan queries
 out_of_scope_response_prompt: |

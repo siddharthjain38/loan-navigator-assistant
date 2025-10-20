@@ -10,17 +10,17 @@ from pathlib import Path
 from datetime import datetime, timedelta
 import random
 from typing import List, Tuple
+from core.constants import LOAN_DB_PATH
 
-# Database configuration
+# Database configuration (for directory creation)
 DATABASE_DIR = Path(__file__).parent.parent / "database" / "loan_data"
-DATABASE_PATH = DATABASE_DIR / "loan_data.db"
 
 class LoanDataSeeder:
     """Seeder for loan data table."""
     
     def __init__(self):
         """Initialize the seeder."""
-        self.db_path = DATABASE_PATH
+        self.db_path = LOAN_DB_PATH
         self.ensure_directory_exists()
     
     def ensure_directory_exists(self):

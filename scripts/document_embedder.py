@@ -2,13 +2,13 @@
 from pathlib import Path
 from typing import List
 from dotenv import load_dotenv
-from langchain.docstore.document import Document
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_core.documents import Document
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_openai import AzureOpenAIEmbeddings
 from langchain_chroma import Chroma
 from core.constants import (
-    DATASET_DIR,
+    POLICY_DOCS,
     VECTOR_STORE_DIR,
     COLLECTION_NAME,
     COLLECTION_METADATA,
@@ -89,7 +89,7 @@ def create_vector_store(
 
 def process_documents():
     """Main function to orchestrate the document processing pipeline."""
-    docs = load_pdf_documents(DATASET_DIR)
+    docs = load_pdf_documents(POLICY_DOCS)
     if not docs:
         return
 

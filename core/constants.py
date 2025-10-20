@@ -9,7 +9,9 @@ BASE_DIR = Path(__file__).parent.parent  # Go up one level to reach project root
 # File paths and directories
 DATASET_DIR = BASE_DIR / "dataset"
 VECTOR_STORE_DIR = BASE_DIR / "database/vector_store"
+LOAN_DB_PATH = BASE_DIR / "database/loan_data/LoanDB_BlueLoans4all.sqlite"
 PROMPTS_DIR = BASE_DIR / "prompts"
+POLICY_DOCS = DATASET_DIR / "policy_docs"
 
 # Vector store settings
 COLLECTION_NAME = "loan_documents"

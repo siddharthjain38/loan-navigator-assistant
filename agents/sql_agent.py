@@ -4,10 +4,10 @@ Simple SQL Agent for converting natural language queries to SQL and fetching loa
 from typing import Dict, Any, List, Union
 import sqlite3
 import json
-from pathlib import Path
 
 from .base_agent import BaseAgent, AgentResponse
 from core.routing_models import SQLQueryResult
+from core.constants import LOAN_DB_PATH
 from pydantic import ValidationError
 
 class SQLAgent(BaseAgent):
@@ -16,7 +16,7 @@ class SQLAgent(BaseAgent):
     def __init__(self):
         """Initialize SQLAgent."""
         super().__init__('sql_agent', temperature=0.1)
-        self.db_path = Path(__file__).parent.parent / "database" / "loan_data" / "loan_data.db"
+        self.db_path = LOAN_DB_PATH
         
         # Create structured LLM for SQL query generation
         self.structured_llm = self.llm.with_structured_output(SQLQueryResult)
@@ -56,6 +56,25 @@ class SQLAgent(BaseAgent):
             rows = cursor.fetchall()
             return [dict(row) for row in rows]
     
+    def _format_results_with_llm(self, query: str, results: List[Dict[str, Any]], sql_explanation: str) -> str:
+        """Use LLM to format SQL results in a natural, user-friendly way."""
+        if not results:
+            return "No data found matching your criteria."
+        
+        # Prepare data summary
+        data_json = json.dumps(results, indent=2, default=str)
+        
+        # Use prompt from YAML configuration
+        format_prompt = self.prompts['format_prompt'].format(
+            user_query=query,
+            sql_explanation=sql_explanation,
+            num_records=len(results),
+            data_json=data_json
+        )
+        
+        response = self.llm.invoke(format_prompt)
+        return response.content if hasattr(response, 'content') else str(response)
+    
     def process(self, query: Union[str, Dict[str, Any]]) -> AgentResponse:
         """Process NLP query to fetch loan data with flexible input handling."""
         try:
@@ -64,22 +83,11 @@ class SQLAgent(BaseAgent):
                 nlp_query = query.get("query", "")
                 customer_data = query.get("customer_data", [])  # Always a list now
                 
-                # Enhance query with customer context if available - let LLM handle multiple customers
+                # Add customer context to query if available
                 if customer_data:
-                    enhanced_query = f"""
-                    Data Query: {nlp_query}
-                    
-                    Existing Customer Data: {customer_data}
-                    
-                    Instructions:
-                    - If single customer: Use their context for targeted queries
-                    - If multiple customers: Generate queries that work for all customers
-                    - Consider customer IDs, loan amounts, interest rates in query generation
-                    - Handle missing customer data gracefully
-                    
-                    Generate appropriate SQL query considering the customer context.
-                    """
-                    nlp_query = enhanced_query
+                    customer_ids = [str(c.get('customer_id', '')) for c in customer_data if c.get('customer_id') is not None]
+                    if customer_ids:
+                        nlp_query = f"{nlp_query} [Customer IDs: {', '.join(customer_ids)}]"
             else:
                 # Handle legacy input formats
                 if isinstance(query, dict):
@@ -95,28 +103,16 @@ class SQLAgent(BaseAgent):
             sql_result = self._generate_sql(nlp_query)
             results = self._execute_sql(sql_result.query)
             
-            # Format response with structured information
+            # Format response using LLM for natural presentation
             if not results:
-                answer = f"No data found matching your criteria.\nQuery: {sql_result.explanation}"
+                answer = f"No data found matching your criteria.\n\nQuery explanation: {sql_result.explanation}"
             else:
-                # Add customer context if available
-                if customer_data:
-                    if len(customer_data) == 1:
-                        answer = f"Customer: {customer_data[0].get('customer_id')}\n"
-                    elif len(customer_data) > 1:
-                        customer_ids = [c.get('customer_id') for c in customer_data]
-                        answer = f"Customers: {', '.join(customer_ids)}\n"
-                    else:
-                        answer = ""
-                    answer += f"Found {len(results)} records.\n"
-                else:
-                    answer = f"Found {len(results)} records.\n"
-                    
-                answer += f"Query explanation: {sql_result.explanation}\n"
-                answer += f"Confidence: {sql_result.confidence:.1%}\n\n"
-                answer += json.dumps(results[:3], indent=2, default=str)
-                if len(results) > 3:
-                    answer += f"\n... and {len(results) - 3} more records."
+                # Use LLM to format the complete results
+                answer = self._format_results_with_llm(
+                    query=nlp_query if isinstance(query, str) else query.get("query", ""),
+                    results=results,
+                    sql_explanation=sql_result.explanation
+                )
             
             return AgentResponse(
                 answer=answer,

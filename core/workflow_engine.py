@@ -5,9 +5,11 @@ ONE function handles all agent interactions.
 
 from typing import Optional, List, Dict, Any
 import re
+import sqlite3
 from agents.base_agent import AgentResponse
 from core.factory import get_sql_agent, get_what_if_calculator, get_policy_guru
 from core.routing_models import AgentType
+from core.constants import LOAN_DB_PATH
 
 
 class WorkflowEngine:
@@ -56,26 +58,31 @@ class WorkflowEngine:
     def _get_customer_data(self, query: str) -> List[Dict[str, Any]]:
         """Extract ALL customer IDs and get their data - simple SQL IN query"""
         try:
-            # Extract ALL customer IDs using findall
-            customer_id_pattern = r"(?:customer|cust|id)\s*(?:id|is|:)?\s*([A-Z]{4}\d+)"
+            # Extract ALL customer IDs - supports CUST1234 or just 1234
+            customer_id_pattern = r"(?:customer|cust|id)[_\s]*(?:id|is|:)?\s*([A-Z]*\d+)"
             matches = re.findall(customer_id_pattern, query, re.IGNORECASE)
 
             if not matches:
                 return []  # Empty list instead of None
 
-            # Remove duplicates and convert to uppercase
-            customer_ids = list(set([cid.upper() for cid in matches]))
+            # Convert to integers (database stores as INTEGER)
+            customer_ids = []
+            for match in set(matches):
+                try:
+                    # Extract numeric part only
+                    numeric_id = ''.join(filter(str.isdigit, match))
+                    if numeric_id:
+                        customer_ids.append(int(numeric_id))
+                except ValueError:
+                    continue
+            
+            if not customer_ids:
+                return []
+                
             print(f"🔍 Customer IDs: {customer_ids}")
 
             # Single SQL query with IN clause - let database handle multiple IDs
-            import sqlite3
-            from pathlib import Path
-
-            db_path = (
-                Path(__file__).parent.parent / "database" / "loan_data" / "loan_data.db"
-            )
-
-            with sqlite3.connect(db_path) as conn:
+            with sqlite3.connect(LOAN_DB_PATH) as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
 
