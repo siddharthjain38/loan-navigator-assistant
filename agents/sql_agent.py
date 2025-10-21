@@ -67,7 +67,12 @@ class SQLAgent(BaseAgent):
         return sql_result.query  # Correct attribute name
 
     def _execute_sql_with_params(self, sql: str, params: tuple) -> List[Dict[str, Any]]:
-        """Execute parameterized SQL query (for testing)."""
+        """
+        Execute parameterized SQL query with parameters (test utility).
+        
+        Used for testing SQL injection prevention with parameterized queries.
+        Production code uses _execute_sql() with LLM-generated queries.
+        """
         try:
             conn = sqlite3.connect(self.db_path)
             conn.row_factory = sqlite3.Row
@@ -84,8 +89,6 @@ class SQLAgent(BaseAgent):
             if conn:
                 conn.close()
             raise e
-        except Exception as e:
-            raise RuntimeError(f"SQL generation failed: {e}")
 
     def _validate_sql(self, sql_query: str) -> Dict[str, Any]:
         """
