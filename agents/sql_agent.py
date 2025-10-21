@@ -40,22 +40,15 @@ class SQLAgent(BaseAgent):
             ]
 
             # Get structured SQL query response
-            sql_result: SQLQueryResult = self.structured_llm.invoke(messages)
-
-            return sql_result
+            return self.structured_llm.invoke(messages)
 
         except ValidationError as e:
             raise ValueError(f"Invalid SQL query structure: {e}")
 
-    def _generate_sql_query(self, query: str) -> str:
-        """Generate SQL query string from natural language (for testing)."""
-        sql_result = self._generate_sql(query)
-        return sql_result.query  # Correct attribute name
-
     def _execute_sql_with_params(self, sql: str, params: tuple) -> List[Dict[str, Any]]:
         """
         Execute parameterized SQL query with parameters (test utility).
-        
+
         Used for testing SQL injection prevention with parameterized queries.
         Production code uses _execute_sql() with LLM-generated queries.
         """
@@ -179,11 +172,7 @@ class SQLAgent(BaseAgent):
         return response.content if hasattr(response, "content") else str(response)
 
     def _generate_clarification_prompt(
-        self,
-        original_query: str,
-        sql_query: str,
-        error_type: str,
-        context: Optional[str] = None,
+        self, original_query: str, error_type: str
     ) -> str:
         """Generate guided clarification prompt for failed queries."""
         # Map error types to YAML prompt keys
@@ -192,11 +181,11 @@ class SQLAgent(BaseAgent):
             "validation_failed": "validation_failed_clarification",
             "sql_error": "sql_error_clarification",
         }
-        
+
         # Get the appropriate prompt from YAML
         prompt_key = prompt_keys.get(error_type, "sql_error_clarification")
         clarification_template = self.prompts[prompt_key]
-        
+
         # Format the prompt with the original query
         return clarification_template.format(original_query=original_query)
 
@@ -244,7 +233,7 @@ class SQLAgent(BaseAgent):
                 # SQL validation failed - signal supervisor for clarification
                 print(f"❌ SQL Validation Failed: {validation['issues']}")
                 clarification = self._generate_clarification_prompt(
-                    nlp_query, sql_result.query, "validation_failed", context
+                    nlp_query, "validation_failed"
                 )
 
                 if retry_count == 0:
@@ -272,7 +261,7 @@ class SQLAgent(BaseAgent):
             except Exception as exec_error:
                 print(f"❌ SQL Execution Error: {exec_error}")
                 clarification = self._generate_clarification_prompt(
-                    nlp_query, sql_result.query, "sql_error", context
+                    nlp_query, "sql_error"
                 )
 
                 if retry_count == 0:
@@ -296,7 +285,7 @@ class SQLAgent(BaseAgent):
             if len(results) == 0:
                 print(f"⚠️ Zero Results Returned for query: {nlp_query}")
                 clarification = self._generate_clarification_prompt(
-                    nlp_query, sql_result.query, "zero_results", context
+                    nlp_query, "zero_results"
                 )
 
                 if retry_count == 0 and not customer_data:
@@ -348,7 +337,7 @@ class SQLAgent(BaseAgent):
     def get_data(self, query: str) -> List[Dict[str, Any]]:
         """Simple method to get raw data for other agents."""
         try:
-            sql_query = self._generate_sql(query)
-            return self._execute_sql(sql_query)
+            sql_result = self._generate_sql(query)
+            return self._execute_sql(sql_result.query)
         except Exception:
             return []

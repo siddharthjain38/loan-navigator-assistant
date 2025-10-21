@@ -24,9 +24,9 @@ with st.sidebar:
         if st.session_state.session_id:
             requests.delete(
                 f"http://localhost:8000/chat/history/{st.session_state.session_id}",
-                timeout=2
+                timeout=2,
             )
-        
+
         # Clear local state
         st.session_state.messages = []
         st.session_state.session_id = None
@@ -81,12 +81,12 @@ if prompt := st.chat_input("Ask me anything about loans..."):
                     timeout=30,
                 )
                 response.raise_for_status()  # Raises HTTPError for bad status codes
-                
+
                 response_data = response.json()
-                
+
                 # Update session ID
                 st.session_state.session_id = response_data["session_id"]
-                
+
                 # Display and save response
                 st.markdown(response_data["answer"])
                 st.session_state.messages.append(
@@ -95,12 +95,14 @@ if prompt := st.chat_input("Ask me anything about loans..."):
 
             except requests.exceptions.Timeout:
                 st.error("⏱️ Request timed out. Please try again.")
-            
+
             except requests.exceptions.ConnectionError:
-                st.error("❌ Cannot connect to backend. Make sure the API is running on http://localhost:8000")
-            
+                st.error(
+                    "❌ Cannot connect to backend. Make sure the API is running on http://localhost:8000"
+                )
+
             except requests.exceptions.HTTPError as e:
                 st.error(f"❌ Server error: {e.response.status_code}")
-            
+
             except Exception as e:
                 st.error(f"❌ Unexpected error: {str(e)}")

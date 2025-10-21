@@ -33,47 +33,46 @@ class ChatResponse(BaseModel):
 @router.post("/chat/", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     """Process chat message with conversation memory."""
-    
+
     # Create or retrieve session
     session_id = request.session_id or str(uuid.uuid4())
-    
+
     # Initialize conversation if new session
     if session_id not in conversations:
         conversations[session_id] = []
-    
+
     # Add user message to history
-    conversations[session_id].append({
-        "role": "user",
-        "content": request.message,
-        "timestamp": datetime.now().isoformat()
-    })
-    
+    conversations[session_id].append(
+        {
+            "role": "user",
+            "content": request.message,
+            "timestamp": datetime.now().isoformat(),
+        }
+    )
+
     print(f"Received chat request: {request.message} (session: {session_id})")
-    
+
     # Get conversation context (last 5 messages)
-    context = "\n".join([
-        f"{msg['role']}: {msg['content']}"
-        for msg in conversations[session_id][-5:]
-    ])
-    
+    context = "\n".join(
+        [f"{msg['role']}: {msg['content']}" for msg in conversations[session_id][-5:]]
+    )
+
     # Process with supervisor
     response = supervisor.process(
-        query=request.message,
-        context=context,
-        session_id=session_id
+        query=request.message, context=context, session_id=session_id
     )
-    
+
     # Add assistant response to history
-    conversations[session_id].append({
-        "role": "assistant",
-        "content": response.answer,
-        "timestamp": datetime.now().isoformat()
-    })
-    
+    conversations[session_id].append(
+        {
+            "role": "assistant",
+            "content": response.answer,
+            "timestamp": datetime.now().isoformat(),
+        }
+    )
+
     return ChatResponse(
-        answer=response.answer,
-        session_id=session_id,
-        metadata=response.metadata
+        answer=response.answer, session_id=session_id, metadata=response.metadata
     )
 
 
@@ -82,7 +81,7 @@ async def get_history(session_id: str):
     """Retrieve conversation history for a session."""
     if session_id not in conversations:
         raise HTTPException(status_code=404, detail="Session not found")
-    
+
     return {"session_id": session_id, "messages": conversations[session_id]}
 
 
@@ -91,5 +90,5 @@ async def clear_history(session_id: str):
     """Clear conversation history for a session."""
     if session_id in conversations:
         del conversations[session_id]
-    
+
     return {"message": "History cleared", "session_id": session_id}

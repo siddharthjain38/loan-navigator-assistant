@@ -50,7 +50,8 @@ class Supervisor(BaseAgent):
                     return self._handle_multi_domain_query(
                         query, multi_domain_result, context, session_id
                     )
-                return self._generate_direct_response(query, routing_decision)
+                # Low confidence, not multi-domain - request clarification
+                return self._handle_ambiguous_query(query, routing_decision, context)
 
             # Clean delegation with comprehensive routing info - pass context and session_id
             response = self.workflow_engine.execute_workflow(
@@ -98,23 +99,8 @@ class Supervisor(BaseAgent):
                 and response.metadata
                 and response.metadata.get("sql_fallback_flag")
             ):
-
-                print(
-                    "🔄 SQL Agent needs clarification - attempting to provide guidance"
-                )
-
-                # Check if we should retry or just return clarification
-                retry_count = response.metadata.get("retry_count", 0)
-
-                if retry_count == 0:
-                    print("📝 Returning clarification prompt to user")
-                    # First attempt - return clarification directly
-                    # User needs to rephrase or provide more info
-                    return response
-                else:
-                    # Retry already happened - return as-is
-                    print("✅ Clarification provided after retry")
-                    return response
+                print("🔄 SQL Agent needs clarification - returning guidance to user")
+                return response
 
             return response
 
@@ -126,8 +112,7 @@ class Supervisor(BaseAgent):
     ) -> str:
         """Enhance query with additional context for retry attempts."""
         enhancement_prompt = self.prompts["query_enhancement"].format(
-            query=query,
-            context=context if context else "No conversation history"
+            query=query, context=context if context else "No conversation history"
         )
 
         try:
@@ -148,16 +133,6 @@ class Supervisor(BaseAgent):
         full_prompt = f"{routing_prompt}\n\nUser Query: {query}\n{f'Available context: {context}' if context else 'No additional context available.'}"
         return self.structured_llm.invoke(full_prompt)
 
-    def _generate_direct_response(
-        self, query: str, routing_decision: RoutingDecision
-    ) -> AgentResponse:
-        """Generate direct response for low confidence queries"""
-        prompt_template = self.prompts["out_of_scope_response_prompt"]
-        formatted_prompt = prompt_template.format(
-            query=query, confidence=routing_decision.confidence
-        )
-        return AgentResponse(answer=self.llm.invoke(formatted_prompt).content)
-
     def _handle_ambiguous_query(
         self, query: str, routing_decision: RoutingDecision, context: Optional[str]
     ) -> AgentResponse:
@@ -176,9 +151,6 @@ class Supervisor(BaseAgent):
             answer=response,
             metadata={
                 "requires_clarification": True,
-                "confidence": routing_decision.confidence,
-                "suggested_agent": routing_decision.agent.value,
-                "clarification_type": "ambiguous_query",
             },
         )
 
@@ -197,8 +169,7 @@ class Supervisor(BaseAgent):
 
             if "{" in response and "}" in response:
                 json_str = response[response.find("{") : response.rfind("}") + 1]
-                result = json.loads(json_str)
-                return result
+                return json.loads(json_str)
         except:
             pass
 
@@ -248,14 +219,7 @@ class Supervisor(BaseAgent):
         # Combine results into coherent response
         combined_answer = self._combine_multi_domain_results(query, results)
 
-        return AgentResponse(
-            answer=combined_answer,
-            metadata={
-                "is_multi_domain": True,
-                "domains_executed": domains,
-                "individual_results": results,
-            },
-        )
+        return AgentResponse(answer=combined_answer)
 
     def _combine_multi_domain_results(self, query: str, results: list) -> str:
         """Combine multiple agent results into a coherent response"""
@@ -268,8 +232,7 @@ class Supervisor(BaseAgent):
         formatted_prompt = combination_prompt.format(query=query, results=results_text)
 
         try:
-            combined = self.llm.invoke(formatted_prompt).content
-            return combined
+            return self.llm.invoke(formatted_prompt).content
         except:
             # Fallback: just concatenate results
             return "\n\n---\n\n".join([r["answer"] for r in results])

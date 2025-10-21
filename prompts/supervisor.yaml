@@ -55,20 +55,6 @@ intelligent_routing_prompt: |
   - "What is loan eligibility criteria" → POLICY_GURU, needs_customer_data: false (policy question)
   - "topup rules for my loan" → POLICY_GURU, needs_customer_data: true (customer-specific policy)
 
-# Out of scope response prompt for non-loan queries
-out_of_scope_response_prompt: |
-  Analyze the user query: "{query}"
-
-  The query appears to be about a topic unrelated to loans (confidence: {confidence}).
-
-  Generate a brief, professional response that:
-  1. Acknowledges what the user seems to be asking about (e.g., "It looks like you're asking about mathematics/cooking/etc.")
-  2. Clearly states you only handle loan-related queries
-  3. Lists what you CAN help with: customer loan information, EMI calculations, loan policies
-  4. Invites them to ask loan-related questions
-
-  Keep it friendly but focused on loan services only.
-
 # Ambiguous query clarification prompt
 ambiguous_query_clarification: |
   The user query "{query}" is ambiguous (confidence: {confidence:.2f}).

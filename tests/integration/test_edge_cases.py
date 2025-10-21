@@ -270,32 +270,50 @@ class TestEdgeCasesAndBoundaries:
         print(f"   {response.answer[:300]}...")
 
     def test_very_large_loan_amount(self):
-        """Test EMI calculation for large loan (boundary test)"""
+        """Test handling of very large loan amounts (edge of range)"""
         from agents.what_if_calculator import WhatIfCalculator
 
         calculator = WhatIfCalculator()
 
-        # Large but valid loan (within 10 crore limit)
-        loan_amount = 50000000  # 5 crore
+        # Near maximum loan amount (10 crore)
+        loan_amount = 99000000  # 9.9 crore
         interest_rate = 10.0
-        tenure_months = 240  # 20 years
+        tenure_years = 20
 
-        validation = calculator._validate_inputs(
-            loan_amount, interest_rate, tenure_months
+        # Validate it's accepted
+        is_valid, error_message = calculator._validate_inputs(
+            loan_amount, interest_rate, tenure_years * 12
+        )
+        assert is_valid == True, f"Validation failed: {error_message}"
+
+        # Use LLM to calculate
+        response = calculator.process(
+            f"Calculate EMI for ₹{loan_amount:,.0f} at {interest_rate}% for {tenure_years} years"
         )
 
-        # Should accept
-        assert validation["is_valid"] == True
+        # Verify response is reasonable
+        assert response.answer is not None
+        scenarios = response.metadata.get("scenarios", [])
+        assert len(scenarios) > 0
 
-        # Calculate EMI
-        emi = calculator._calculate_emi(loan_amount, interest_rate, tenure_months)
+        # Find 20-year scenario
+        twenty_year_scenario = None
+        for scenario in scenarios:
+            if scenario.get("tenure_months") == tenure_years * 12:
+                twenty_year_scenario = scenario
+                break
 
-        # Should be reasonable
-        assert emi > 0
-        assert emi < loan_amount  # EMI can't be more than principal
+        if twenty_year_scenario:
+            emi = twenty_year_scenario.get("monthly_emi")
+            assert emi > 0, "EMI should be positive"
+            assert emi < loan_amount, "EMI can't be more than principal"
 
-        print(f"✅ Large Loan Amount Handled:")
-        print(f"   Loan: ₹{loan_amount:,}, EMI: ₹{emi:,.2f}")
+            print(f"✅ Large Loan Amount Handled:")
+            print(f"   Loan: ₹{loan_amount:,}, EMI: ₹{emi:,.2f}")
+        else:
+            # No exact 20-year scenario, but response should be valid
+            assert "emi" in response.answer.lower() or "EMI" in response.answer
+            print(f"✅ Large Loan Amount Handled (no exact 20-year scenario)")
 
     def test_very_short_tenure(self):
         """Test minimum tenure boundary (6 months)"""

@@ -93,3 +93,59 @@ class PolicyResponse(BaseModel):
         if len(v.strip()) < 10:
             raise ValueError("Answer must be at least 10 characters")
         return v.strip()
+
+
+class LoanInputValidation(BaseModel):
+    """Pydantic model for validating loan calculation inputs"""
+
+    loan_amount: float = Field(
+        ...,
+        gt=0,
+        ge=1000,
+        le=100000000,
+        description="Loan amount between ₹1,000 and ₹10 crore",
+    )
+    interest_rate: float = Field(
+        ...,
+        gt=0,
+        ge=0.1,
+        le=50,
+        description="Annual interest rate between 0.1% and 50%",
+    )
+    tenure_months: Optional[int] = Field(
+        None,
+        gt=0,
+        ge=6,
+        le=360,
+        description="Loan tenure between 6 months and 30 years",
+    )
+    prepayment: Optional[float] = Field(
+        None, ge=0, description="Prepayment amount (must be non-negative)"
+    )
+    outstanding_balance: Optional[float] = Field(
+        None, ge=0, description="Outstanding balance (must be non-negative)"
+    )
+
+    @validator("prepayment")
+    def validate_prepayment(cls, v, values):
+        """Ensure prepayment doesn't exceed loan amount or outstanding balance"""
+        if v is None:
+            return v
+
+        # Check against outstanding balance first
+        if (
+            "outstanding_balance" in values
+            and values["outstanding_balance"] is not None
+        ):
+            if v > values["outstanding_balance"]:
+                raise ValueError(
+                    f"Prepayment (₹{v:,.0f}) exceeds outstanding balance (₹{values['outstanding_balance']:,.0f})"
+                )
+        # Otherwise check against loan amount
+        elif "loan_amount" in values:
+            if v > values["loan_amount"]:
+                raise ValueError(
+                    f"Prepayment (₹{v:,.0f}) exceeds loan amount (₹{values['loan_amount']:,.0f})"
+                )
+
+        return v

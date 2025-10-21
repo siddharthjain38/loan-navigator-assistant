@@ -203,11 +203,7 @@ class PolicyGuru(BaseAgent):
 
     def _handle_no_docs(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Handle case when no relevant documents are found with generic fallback."""
-        # Provide generic fallback message with typical policy information
-        """Generate fallback answer when no relevant documents found"""
-        fallback_msg = self.prompts["fallback_message"]
-        state["answer"] = fallback_msg
-        state["confidence"] = 0.3  # Low confidence for generic response
+        state["answer"] = self.prompts["fallback_message"]
         return state
 
     def process(self, query_input, retry_count: int = 0) -> AgentResponse:
@@ -222,8 +218,7 @@ class PolicyGuru(BaseAgent):
                 # Enhance query with customer context if available
                 if customer_data:
                     enhanced_query = self.prompts["customer_data_enhancement"].format(
-                        query=query,
-                        customer_data=customer_data
+                        query=query, customer_data=customer_data
                     )
                     query = enhanced_query
             else:
