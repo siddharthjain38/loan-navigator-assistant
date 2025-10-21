@@ -29,4 +29,3 @@ MODEL_NAME = "gpt4o"  # Using GPT-4 for complex reasoning and calculations
 
 # Retrieval settings
 SEARCH_K = 2
-TEST_QUERY = "What are the loan policies?"

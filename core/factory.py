@@ -41,12 +41,6 @@ class LLMFactory:
 
         return cls._embedding_instances[key]
 
-    @classmethod
-    def clear_cache(cls) -> None:
-        """Clear all cached instances. Useful for testing or resource cleanup."""
-        cls._chat_instances.clear()
-        cls._embedding_instances.clear()
-
 
 class AgentFactory:
     """Factory for creating and managing agent instances."""
@@ -85,11 +79,6 @@ class AgentFactory:
             cls._agent_instances["sql_agent"] = SQLAgent()
 
         return cls._agent_instances["sql_agent"]
-
-    @classmethod
-    def clear_cache(cls) -> None:
-        """Clear all cached agent instances."""
-        cls._agent_instances.clear()
 
 
 # Convenience functions for easy access
