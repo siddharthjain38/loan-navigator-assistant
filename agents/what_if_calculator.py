@@ -1,10 +1,11 @@
-from typing import Dict, Any, Union, List
+from typing import Dict, Any, Union, List, Optional
 from .base_agent import BaseAgent, AgentResponse
 from core.routing_models import EMICalculation, EMIScenarios
 from pydantic import ValidationError
+import json
 
 class WhatIfCalculator(BaseAgent):
-    """Agent for calculating loan EMIs with different scenarios."""
+    """Agent for calculating loan EMIs with different scenarios and fallback mechanisms."""
     
     def __init__(self):
         """Initialize WhatIfCalculator with all resources."""
@@ -12,8 +13,148 @@ class WhatIfCalculator(BaseAgent):
         
         # Create structured LLM for EMI calculations
         self.structured_llm = self.llm.with_structured_output(EMIScenarios)
+        
+        # Validation constraints
+        self.min_loan_amount = 1000  # Minimum loan amount
+        self.max_loan_amount = 100000000  # 10 crore maximum
+        self.min_tenure_months = 6  # 6 months minimum
+        self.max_tenure_months = 360  # 30 years maximum
+        self.min_interest_rate = 0.1  # 0.1% minimum
+        self.max_interest_rate = 50  # 50% maximum (extremely high but possible)
+    
+    def _calculate_emi(self, loan_amount: float, interest_rate: float, tenure_months: int) -> float:
+        """
+        Calculate EMI using the standard formula.
+        
+        Formula: EMI = P × r × (1 + r)^n / ((1 + r)^n - 1)
+        Where:
+            P = Principal loan amount
+            r = Monthly interest rate (annual rate / 12 / 100)
+            n = Number of months
+        
+        Returns:
+            Monthly EMI amount
+        """
+        if interest_rate == 0:
+            # For 0% interest, EMI is simply loan_amount / tenure
+            return loan_amount / tenure_months
+        
+        # Calculate monthly interest rate
+        monthly_rate = interest_rate / (12 * 100)
+        
+        # EMI formula
+        emi = loan_amount * monthly_rate * pow(1 + monthly_rate, tenure_months) / (pow(1 + monthly_rate, tenure_months) - 1)
+        
+        return round(emi, 2)
+    
+    def _validate_inputs(self, loan_amount: float, interest_rate: float, 
+                        tenure_months: Optional[int] = None, 
+                        prepayment: Optional[float] = None,
+                        outstanding_balance: Optional[float] = None) -> Dict[str, Any]:
+        """
+        Validate calculation inputs and return validation result.
+        
+        Returns:
+            Dict with is_valid flag, errors list, and suggestions
+        """
+        validation_result = {
+            "is_valid": True,
+            "errors": [],
+            "warnings": [],
+            "suggestions": []
+        }
+        
+        # Validate loan amount
+        if loan_amount <= 0:
+            validation_result["is_valid"] = False
+            validation_result["errors"].append("Loan amount must be positive")
+            validation_result["suggestions"].append("Please provide a loan amount greater than ₹0")
+        elif loan_amount < self.min_loan_amount:
+            validation_result["is_valid"] = False
+            validation_result["errors"].append(f"Loan amount too small (minimum: ₹{self.min_loan_amount:,})")
+        elif loan_amount > self.max_loan_amount:
+            validation_result["is_valid"] = False
+            validation_result["errors"].append(f"Loan amount exceeds maximum (₹{self.max_loan_amount:,})")
+            validation_result["suggestions"].append("Consider breaking into multiple loans or contact for special approval")
+        
+        # Validate interest rate
+        if interest_rate <= 0:
+            validation_result["is_valid"] = False
+            validation_result["errors"].append("Interest rate must be positive")
+        elif interest_rate < self.min_interest_rate:
+            validation_result["is_valid"] = False
+            validation_result["errors"].append(f"Interest rate too low (minimum: {self.min_interest_rate}%)")
+        elif interest_rate > self.max_interest_rate:
+            validation_result["is_valid"] = False
+            validation_result["errors"].append(f"Interest rate too high (maximum: {self.max_interest_rate}%)")
+            validation_result["warnings"].append("This interest rate seems unusually high. Please verify.")
+        
+        # Validate tenure if provided
+        if tenure_months is not None:
+            if tenure_months <= 0:
+                validation_result["is_valid"] = False
+                validation_result["errors"].append("Tenure must be positive")
+                validation_result["suggestions"].append("Please specify a tenure between 6 months and 30 years")
+            elif tenure_months < self.min_tenure_months:
+                validation_result["is_valid"] = False
+                validation_result["errors"].append(f"Tenure too short (minimum: {self.min_tenure_months} months)")
+            elif tenure_months > self.max_tenure_months:
+                validation_result["is_valid"] = False
+                validation_result["errors"].append(f"Tenure too long (maximum: {self.max_tenure_months} months / 30 years)")
+        
+        # Validate prepayment if provided
+        if prepayment is not None:
+            if prepayment < 0:
+                validation_result["is_valid"] = False
+                validation_result["errors"].append("Prepayment amount cannot be negative")
+                validation_result["suggestions"].append("Please provide a prepayment amount of ₹0 or greater")
             
-    def process(self, query: Union[str, Dict[Any, Any]]) -> AgentResponse:
+            # Check if prepayment exceeds outstanding balance
+            if outstanding_balance is not None and prepayment > outstanding_balance:
+                validation_result["is_valid"] = False
+                validation_result["errors"].append(
+                    f"Prepayment (₹{prepayment:,.0f}) exceeds outstanding balance (₹{outstanding_balance:,.0f})"
+                )
+                validation_result["suggestions"].append(
+                    f"Would you like to simulate a complete foreclosure with ₹{outstanding_balance:,.0f}?"
+                )
+            elif prepayment > loan_amount:
+                # If no outstanding balance given, compare with loan amount
+                validation_result["is_valid"] = False
+                validation_result["errors"].append(
+                    f"Prepayment (₹{prepayment:,.0f}) exceeds loan amount (₹{loan_amount:,.0f})"
+                )
+                validation_result["suggestions"].append(
+                    "For complete loan closure, would you like to see foreclosure options?"
+                )
+        
+        return validation_result
+    
+    def _generate_error_response(self, validation_result: Dict[str, Any], 
+                                 original_query: str = "") -> Dict[str, Any]:
+        """Generate error JSON response with helpful suggestions."""
+        error_response = {
+            "status": "error",
+            "message": "Input validation failed",
+            "errors": validation_result["errors"],
+            "warnings": validation_result.get("warnings", []),
+            "suggestions": validation_result.get("suggestions", []),
+            "original_query": original_query,
+            "help": {
+                "loan_amount_range": f"₹{self.min_loan_amount:,} to ₹{self.max_loan_amount:,}",
+                "interest_rate_range": f"{self.min_interest_rate}% to {self.max_interest_rate}%",
+                "tenure_range": f"{self.min_tenure_months} to {self.max_tenure_months} months ({self.min_tenure_months//12} to {self.max_tenure_months//12} years)",
+                "examples": [
+                    "Calculate EMI for ₹50,00,000 at 8.5% interest",
+                    "What if I prepay ₹1,00,000 on my current loan?",
+                    "Show EMI for ₹25 lakhs over 20 years at 9% interest"
+                ]
+            }
+        }
+        
+        return error_response
+            
+    def process(self, query: Union[str, Dict[Any, Any]], retry_count: int = 0) -> AgentResponse:
         """
         Process the loan calculation request with flexible input handling.
         
@@ -43,6 +184,74 @@ class WhatIfCalculator(BaseAgent):
         """Process input from WorkflowEngine with query and optional customer_data list"""
         query = input_data.get("query", "")
         customer_data = input_data.get("customer_data", [])  # Always a list now
+        
+        # Extract parameters for validation if available
+        loan_amount = None
+        interest_rate = None
+        outstanding_balance = None
+        prepayment_amount = None
+        
+        # Get loan details from customer data if available
+        if customer_data and len(customer_data) > 0:
+            customer = customer_data[0]  # Use first customer for validation
+            loan_amount = customer.get('loan_amount')
+            interest_rate = customer.get('interest_rate')
+            
+            # Calculate outstanding balance if available
+            if 'loan_amount' in customer and 'amount_paid' in customer:
+                outstanding_balance = customer.get('loan_amount') - customer.get('amount_paid', 0)
+        
+        # Try to extract prepayment from query
+        import re
+        prepay_match = re.search(r'prepay(?:ment)?\s+(?:of\s+)?₹?(\d+(?:,\d+)*(?:\.\d+)?)', query, re.IGNORECASE)
+        if prepay_match:
+            prepayment_str = prepay_match.group(1).replace(',', '')
+            try:
+                prepayment_amount = float(prepayment_str)
+            except ValueError:
+                pass
+        
+        # Validate inputs if we have them
+        if loan_amount and interest_rate:
+            validation = self._validate_inputs(
+                loan_amount=loan_amount,
+                interest_rate=interest_rate,
+                prepayment=prepayment_amount,
+                outstanding_balance=outstanding_balance
+            )
+            
+            if not validation["is_valid"]:
+                print(f"❌ What-If Calculator validation failed: {validation['errors']}")
+                
+                # Generate error response
+                error_json = self._generate_error_response(validation, query)
+                
+                # Format user-friendly error message
+                error_message = "⚠️ **Input Validation Error**\n\n"
+                error_message += "**Issues Found:**\n"
+                for error in validation["errors"]:
+                    error_message += f"• {error}\n"
+                
+                if validation.get("suggestions"):
+                    error_message += "\n**Suggestions:**\n"
+                    for suggestion in validation["suggestions"]:
+                        error_message += f"• {suggestion}\n"
+                
+                error_message += f"\n**Valid Ranges:**\n"
+                error_message += f"• Loan Amount: ₹{self.min_loan_amount:,} to ₹{self.max_loan_amount:,}\n"
+                error_message += f"• Interest Rate: {self.min_interest_rate}% to {self.max_interest_rate}%\n"
+                error_message += f"• Tenure: {self.min_tenure_months//12} to {self.max_tenure_months//12} years\n"
+                
+                return AgentResponse(
+                    answer=error_message,
+                    metadata={
+                        "whatif_fallback_flag": True,
+                        "validation_failed": True,
+                        "error_json": error_json,
+                        "errors": validation["errors"],
+                        "suggestions": validation.get("suggestions", [])
+                    }
+                )
         
         # Enhanced prompt - let LLM handle 0, 1, or multiple customers intelligently
         calculation_prompt = f"""

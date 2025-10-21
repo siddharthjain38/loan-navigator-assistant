@@ -15,6 +15,7 @@ charset-normalizer==3.4.4
 chromadb==1.2.0
 click==8.3.0
 coloredlogs==15.0.1
+coverage==7.11.0
 dataclasses-json==0.6.7
 distro==1.9.0
 dotenv==0.9.9
@@ -41,6 +42,7 @@ humanfriendly==10.0
 idna==3.11
 importlib_metadata==8.7.0
 importlib_resources==6.5.2
+iniconfig==2.3.0
 Jinja2==3.1.6
 jiter==0.11.1
 jsonpatch==1.33
@@ -85,6 +87,7 @@ overrides==7.7.0
 packaging==25.0
 pandas==2.3.3
 pillow==11.3.0
+pluggy==1.6.0
 posthog==5.4.0
 propcache==0.4.1
 protobuf==6.33.0
@@ -100,6 +103,10 @@ Pygments==2.19.2
 pypdf==6.1.2
 PyPika==0.48.9
 pyproject_hooks==1.2.0
+pytest==8.4.2
+pytest-asyncio==1.2.0
+pytest-cov==7.0.0
+pytest-mock==3.15.1
 python-dateutil==2.9.0.post0
 python-dotenv==1.1.1
 pytz==2025.2

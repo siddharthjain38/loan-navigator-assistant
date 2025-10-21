@@ -21,5 +21,18 @@ no_docs_message: |
   I couldn't find any relevant loan policy documents to answer your question. 
   Could you please rephrase or ask about a different aspect of the loan policy?
 
+fallback_message: |
+  We couldn't find an exact policy for this scenario, but here's what typically applies:
+  
+  **General Loan Policies:**
+  - **Eligibility**: Most loans require valid ID proof, income documentation, and credit history
+  - **Documentation**: KYC documents, address proof, and income statements are standard requirements
+  - **Prepayment**: Typically allowed with minimal or no charges, but terms vary by loan type
+  - **Top-up Options**: Available for customers with good repayment history and active loans
+  - **Interest Rates**: Vary based on loan amount, tenure, credit score, and customer profile
+  
+  For specific guidance tailored to your situation, please contact our support team with your customer ID, 
+  or ask me more specific questions about loan policies, eligibility criteria, or procedures.
+
 default_error_response: |
   I couldn't process your query.

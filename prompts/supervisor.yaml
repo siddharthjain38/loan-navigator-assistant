@@ -68,3 +68,63 @@ out_of_scope_response_prompt: |
   4. Invites them to ask loan-related questions
 
   Keep it friendly but focused on loan services only.
+
+# Ambiguous query clarification prompt
+ambiguous_query_clarification: |
+  The user query "{query}" is ambiguous (confidence: {confidence:.2f}).
+  
+  Reasoning: {reasoning}
+  
+  Please provide a helpful clarification request that:
+  1. Acknowledges their question
+  2. Explains why it's unclear (briefly)
+  3. Lists specific options they might be looking for:
+     - View existing loan details (customer ID, EMI, outstanding balance)
+     - Calculate EMI for a new loan or scenario
+     - Learn about loan policies (eligibility, documentation, rules)
+  4. Asks them to clarify which one they need
+  
+  Keep it friendly and concise. Guide them toward a clear question.
+
+# Multi-domain query detection prompt
+multi_domain_detection: |
+  Analyze if this query requires multiple agents:
+  
+  Query: {query}
+  Context: {context}
+  
+  Agents available:
+  - SQL_AGENT: Fetches customer loan data from database
+  - WHAT_IF_CALCULATOR: Calculates EMI scenarios
+  - POLICY_GURU: Answers policy questions
+  
+  Does this query need multiple agents? 
+  
+  Examples of multi-domain queries:
+  - "Show my loan and calculate what if I prepay 1 lakh" (SQL + Calculator)
+  - "What's my eligibility and current loan status" (Policy + SQL)
+  - "Calculate EMI for 50 lakhs and tell me prepayment rules" (Calculator + Policy)
+  - "My current EMI and what if I extend tenure" (SQL + Calculator)
+  
+  Return ONLY a JSON object (no markdown, no extra text):
+  {{"is_multi_domain": true/false, "domains": ["AGENT_TYPE1", "AGENT_TYPE2"], "reasoning": "explanation"}}
+  
+  Use exact agent type names: SQL_AGENT, WHAT_IF_CALCULATOR, POLICY_GURU
+
+# Multi-domain results combination prompt
+multi_domain_combination: |
+  User asked: {query}
+  
+  We gathered information from multiple systems:
+  
+  {results}
+  
+  Please combine these results into a single, coherent response that:
+  1. Directly answers the user's question
+  2. Integrates information from all sources seamlessly
+  3. Is well-organized with clear sections if needed
+  4. Maintains professional, helpful tone
+  5. Provides actionable information
+  
+  Do not mention "multiple agents", "systems", or technical implementation details.
+  Just provide a natural, integrated answer as if from a single knowledgeable assistant.

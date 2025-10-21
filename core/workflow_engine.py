@@ -19,62 +19,108 @@ class WorkflowEngine:
         self.sql_agent = get_sql_agent()
         self.what_if_calculator = get_what_if_calculator()
         self.policy_guru = get_policy_guru()
+        self.conversation_context = {}  # Store customer info per session
 
     def execute_workflow(
-        self, query: str, agent_type: AgentType, needs_customer_data: bool
+        self, query: str, agent_type: AgentType, needs_customer_data: bool, 
+        context: Optional[str] = None, session_id: Optional[str] = None,
+        retry_count: int = 0
     ) -> AgentResponse:
         """Single function - get customer data if needed, let agents handle the rest"""
         try:
             print(
-                f"🔄 WorkflowEngine: {agent_type.value} (needs_data: {needs_customer_data})"
+                f"🔄 WorkflowEngine: {agent_type.value} (needs_data: {needs_customer_data}, retry: {retry_count})"
             )
 
             # Get customer data if needed - always returns list (0, 1, or multiple)
             customer_data = (
-                self._get_customer_data(query) if needs_customer_data else []
+                self._get_customer_data(query, context, session_id) if needs_customer_data else []
             )
 
             # Simple input - let LLM figure out what to do
             agent_input = {
                 "query": query,
                 "customer_data": customer_data,  # Always a list: [], [single], [multiple]
+                "context": context,  # Pass conversation context to agents
             }
 
             print(f"📊 Found {len(customer_data)} customer(s)")
 
             # Simple delegation - same pattern for all agents
             if agent_type == AgentType.SQL_AGENT:
-                return self.sql_agent.process(agent_input)
+                # Pass retry_count to SQL Agent for fallback handling
+                return self.sql_agent.process(agent_input, retry_count=retry_count)
             elif agent_type == AgentType.WHAT_IF_CALCULATOR:
                 return self.what_if_calculator.process(agent_input)
             elif agent_type == AgentType.POLICY_GURU:
-                return self.policy_guru.process(agent_input)
+                # Pass retry_count to Policy Guru for fallback handling
+                return self.policy_guru.process(agent_input, retry_count=retry_count)
             else:
                 raise ValueError(f"Unsupported agent type: {agent_type}")
 
         except Exception as e:
             return AgentResponse(answer=f"Workflow error: {str(e)}. Please try again.")
 
-    def _get_customer_data(self, query: str) -> List[Dict[str, Any]]:
-        """Extract ALL customer IDs and get their data - simple SQL IN query"""
-        try:
-            # Extract ALL customer IDs - supports CUST1234 or just 1234
+    def _extract_customer_info_from_context(self, context: Optional[str], session_id: Optional[str]) -> List[int]:
+        """Extract customer IDs from conversation history"""
+        customer_ids = []
+        
+        # Check if we have stored customer info for this session
+        if session_id and session_id in self.conversation_context:
+            stored_ids = self.conversation_context[session_id].get('customer_ids', [])
+            if stored_ids:
+                print(f"📝 Using stored customer IDs from session: {stored_ids}")
+                return stored_ids
+        
+        # Extract from context if available
+        if context:
             customer_id_pattern = r"(?:customer|cust|id)[_\s]*(?:id|is|:)?\s*([A-Z]*\d+)"
-            matches = re.findall(customer_id_pattern, query, re.IGNORECASE)
-
-            if not matches:
-                return []  # Empty list instead of None
-
-            # Convert to integers (database stores as INTEGER)
-            customer_ids = []
+            matches = re.findall(customer_id_pattern, context, re.IGNORECASE)
+            
             for match in set(matches):
                 try:
-                    # Extract numeric part only
                     numeric_id = ''.join(filter(str.isdigit, match))
                     if numeric_id:
                         customer_ids.append(int(numeric_id))
                 except ValueError:
                     continue
+            
+            # Store extracted IDs for future reference
+            if customer_ids and session_id:
+                if session_id not in self.conversation_context:
+                    self.conversation_context[session_id] = {}
+                self.conversation_context[session_id]['customer_ids'] = customer_ids
+                print(f"💾 Stored customer IDs for session: {customer_ids}")
+        
+        return customer_ids
+
+    def _get_customer_data(self, query: str, context: Optional[str] = None, 
+                          session_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Extract ALL customer IDs and get their data - simple SQL IN query"""
+        try:
+            customer_ids = []
+            
+            # First, try to extract from current query
+            customer_id_pattern = r"(?:customer|cust|id)[_\s]*(?:id|is|:)?\s*([A-Z]*\d+)"
+            matches = re.findall(customer_id_pattern, query, re.IGNORECASE)
+
+            for match in set(matches):
+                try:
+                    numeric_id = ''.join(filter(str.isdigit, match))
+                    if numeric_id:
+                        customer_ids.append(int(numeric_id))
+                except ValueError:
+                    continue
+            
+            # If no customer ID in current query, check conversation context
+            if not customer_ids:
+                customer_ids = self._extract_customer_info_from_context(context, session_id)
+            
+            # Store IDs for this session even if found in current query
+            if customer_ids and session_id:
+                if session_id not in self.conversation_context:
+                    self.conversation_context[session_id] = {}
+                self.conversation_context[session_id]['customer_ids'] = customer_ids
             
             if not customer_ids:
                 return []
@@ -105,3 +151,9 @@ class WorkflowEngine:
         except Exception as e:
             print(f"❌ Database error: {e}")
             return []  # Return empty list on error
+    
+    def clear_session_context(self, session_id: str):
+        """Clear stored context for a session"""
+        if session_id in self.conversation_context:
+            del self.conversation_context[session_id]
+            print(f"🧹 Cleared session context for: {session_id}")

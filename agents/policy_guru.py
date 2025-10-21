@@ -149,6 +149,23 @@ class PolicyGuru(BaseAgent):
         except Exception as e:
             logger.error(f"Error in document retrieval: {str(e)}")
             raise
+    
+    def retrieve_docs(self, query: str) -> List[Dict[str, Any]]:
+        """
+        Public method to retrieve documents (for testing).
+        Returns list of dicts with 'content' and 'metadata'.
+        """
+        state = {"query": query}
+        state = self._retrieve_docs(state)
+        
+        results = []
+        for doc, source in zip(state["filtered_docs"], state["filtered_sources"]):
+            results.append({
+                "content": doc,
+                "metadata": source
+            })
+        
+        return results
 
     def _generate_answer(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Generate answer using filtered documents."""
@@ -188,22 +205,23 @@ class PolicyGuru(BaseAgent):
             raise
 
     def _handle_no_docs(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """Handle case when no relevant documents are found."""
-        msg = self.prompts["no_docs_message"]
-        state["answer"] = msg
+        """Handle case when no relevant documents are found with generic fallback."""
+        # Provide generic fallback message with typical policy information
+        fallback_msg = self.prompts.get("fallback_message", self.prompts["no_docs_message"])
+        state["answer"] = fallback_msg
+        state["confidence"] = 0.3  # Low confidence for generic response
         return state
 
-    def process(self, query_input) -> AgentResponse:
-        """Process a user query about loan policies with flexible input handling."""
+    def process(self, query_input, retry_count: int = 0) -> AgentResponse:
+        """Process a user query about loan policies with flexible input handling and retry logic."""
         try:
             # Handle new workflow engine input format
             if isinstance(query_input, dict) and "query" in query_input:
                 query = query_input.get("query", "")
-                customer_data = query_input.get(
-                    "customer_data", []
-                )  # Always a list now
+                customer_data = query_input.get("customer_data", [])
+                context = query_input.get("context", "")  # Conversation context
 
-                # Enhance query with customer context if available - let LLM handle multiple customers
+                # Enhance query with customer context if available
                 if customer_data:
                     enhanced_query = f"""
                     Policy Question: {query}
@@ -223,6 +241,7 @@ class PolicyGuru(BaseAgent):
                 # Handle legacy string input
                 query = str(query_input)
                 customer_data = []
+                context = ""
 
             state = {
                 "query": query,
@@ -236,22 +255,60 @@ class PolicyGuru(BaseAgent):
             final_state = self.graph.invoke(state)
 
             # Calculate confidence based on filtered documents
-            filtered_docs_count = len(final_state.get("filtered_docs", []))
+            filtered_docs = final_state.get("filtered_docs", [])
+            filtered_docs_count = len(filtered_docs)
 
-            # Check if we need supervisor to enhance query
-            if filtered_docs_count == 0:
+            # Check if we need supervisor to enhance query (first attempt only)
+            if filtered_docs_count == 0 and retry_count == 0:
                 # Signal supervisor that query needs enhancement
                 return AgentResponse(
-                    answer="No relevant documents found. Query may need enhancement.",
+                    answer="",
                     metadata={
                         "needs_query_enhancement": True,
-                        "reason": "No documents with sufficient similarity found",
+                        "reason": "No documents with sufficient similarity found (cosine < 0.75)",
+                        "original_query": query,
+                        "retry_count": retry_count,
+                    },
+                )
+            
+            # If retry also failed, provide generic fallback
+            elif filtered_docs_count == 0 and retry_count > 0:
+                fallback_answer = self.prompts.get(
+                    "fallback_message",
+                    "We couldn't find an exact policy for this scenario, but here's what typically applies: "
+                    "For most loan-related queries, please refer to our standard policies regarding eligibility, "
+                    "documentation, prepayment, and top-up options. For specific guidance, please contact our "
+                    "support team with your customer ID."
+                )
+                return AgentResponse(
+                    answer=fallback_answer,
+                    metadata={
+                        "is_fallback": True,
+                        "confidence": 0.3,
+                        "retry_count": retry_count,
+                        "reason": "Generic fallback after retry failed",
                     },
                 )
 
             # Use structured response if available
             policy_response = final_state.get("policy_response")
             if policy_response:
+                # Check confidence threshold
+                if policy_response.confidence < 0.75 and retry_count == 0:
+                    # Low confidence, signal for retry
+                    return AgentResponse(
+                        answer=policy_response.answer,
+                        sources=final_state.get("filtered_sources", []),
+                        metadata={
+                            "needs_query_enhancement": True,
+                            "reason": f"Low confidence score: {policy_response.confidence}",
+                            "policy_type": policy_response.policy_type,
+                            "confidence": policy_response.confidence,
+                            "relevant_sections": policy_response.relevant_sections,
+                            "retry_count": retry_count,
+                        },
+                    )
+                
                 return AgentResponse(
                     answer=policy_response.answer,
                     sources=final_state.get("filtered_sources", []),
@@ -260,6 +317,7 @@ class PolicyGuru(BaseAgent):
                         "confidence": policy_response.confidence,
                         "relevant_sections": policy_response.relevant_sections,
                         "structured_output": True,
+                        "retry_count": retry_count,
                     },
                 )
             else:
@@ -268,7 +326,10 @@ class PolicyGuru(BaseAgent):
                         "answer", self.prompts["default_error_response"]
                     ),
                     sources=final_state.get("filtered_sources", []),
-                    metadata={"structured_output": False},
+                    metadata={
+                        "structured_output": False,
+                        "retry_count": retry_count,
+                    },
                 )
 
         except Exception as e:
