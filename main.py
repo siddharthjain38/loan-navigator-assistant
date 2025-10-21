@@ -1,6 +1,7 @@
 """
 Main FastAPI application entry point.
 """
+
 import os
 import sys
 from pathlib import Path
@@ -14,7 +15,7 @@ cache_dir.mkdir(exist_ok=True)
 os.environ["PYTHONPYCACHEPREFIX"] = str(cache_dir)
 
 # For Python 3.8+, try to set sys.pycache_prefix directly
-if hasattr(sys, 'pycache_prefix'):
+if hasattr(sys, "pycache_prefix"):
     if not sys.pycache_prefix:
         # This works for modules imported AFTER this point
         sys.pycache_prefix = str(cache_dir)
@@ -27,7 +28,7 @@ else:
 from dotenv import load_dotenv
 
 # Load environment variables
-load_dotenv(dotenv_path=project_root / '.env')
+load_dotenv(dotenv_path=project_root / ".env")
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -36,7 +37,7 @@ from api.chat import router as chat_router
 # Create FastAPI app
 app = FastAPI(
     title="Loan Navigator API",
-    description="API for loan policy analysis and navigation"
+    description="API for loan policy analysis and navigation",
 )
 
 # Enable CORS for Streamlit frontend
@@ -53,4 +54,5 @@ app.include_router(chat_router)
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

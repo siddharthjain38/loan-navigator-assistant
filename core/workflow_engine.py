@@ -22,9 +22,13 @@ class WorkflowEngine:
         self.conversation_context = {}  # Store customer info per session
 
     def execute_workflow(
-        self, query: str, agent_type: AgentType, needs_customer_data: bool, 
-        context: Optional[str] = None, session_id: Optional[str] = None,
-        retry_count: int = 0
+        self,
+        query: str,
+        agent_type: AgentType,
+        needs_customer_data: bool,
+        context: Optional[str] = None,
+        session_id: Optional[str] = None,
+        retry_count: int = 0,
     ) -> AgentResponse:
         """Single function - get customer data if needed, let agents handle the rest"""
         try:
@@ -34,7 +38,9 @@ class WorkflowEngine:
 
             # Get customer data if needed - always returns list (0, 1, or multiple)
             customer_data = (
-                self._get_customer_data(query, context, session_id) if needs_customer_data else []
+                self._get_customer_data(query, context, session_id)
+                if needs_customer_data
+                else []
             )
 
             # Simple input - let LLM figure out what to do
@@ -61,70 +67,82 @@ class WorkflowEngine:
         except Exception as e:
             return AgentResponse(answer=f"Workflow error: {str(e)}. Please try again.")
 
-    def _extract_customer_info_from_context(self, context: Optional[str], session_id: Optional[str]) -> List[int]:
+    def _extract_customer_info_from_context(
+        self, context: Optional[str], session_id: Optional[str]
+    ) -> List[int]:
         """Extract customer IDs from conversation history"""
         customer_ids = []
-        
+
         # Check if we have stored customer info for this session
         if session_id and session_id in self.conversation_context:
-            stored_ids = self.conversation_context[session_id].get('customer_ids', [])
+            stored_ids = self.conversation_context[session_id].get("customer_ids", [])
             if stored_ids:
                 print(f"📝 Using stored customer IDs from session: {stored_ids}")
                 return stored_ids
-        
+
         # Extract from context if available
         if context:
-            customer_id_pattern = r"(?:customer|cust|id)[_\s]*(?:id|is|:)?\s*([A-Z]*\d+)"
+            customer_id_pattern = (
+                r"(?:customer|cust|id)[_\s]*(?:id|is|:)?\s*([A-Z]*\d+)"
+            )
             matches = re.findall(customer_id_pattern, context, re.IGNORECASE)
-            
+
             for match in set(matches):
                 try:
-                    numeric_id = ''.join(filter(str.isdigit, match))
+                    numeric_id = "".join(filter(str.isdigit, match))
                     if numeric_id:
                         customer_ids.append(int(numeric_id))
                 except ValueError:
                     continue
-            
+
             # Store extracted IDs for future reference
             if customer_ids and session_id:
                 if session_id not in self.conversation_context:
                     self.conversation_context[session_id] = {}
-                self.conversation_context[session_id]['customer_ids'] = customer_ids
+                self.conversation_context[session_id]["customer_ids"] = customer_ids
                 print(f"💾 Stored customer IDs for session: {customer_ids}")
-        
+
         return customer_ids
 
-    def _get_customer_data(self, query: str, context: Optional[str] = None, 
-                          session_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    def _get_customer_data(
+        self,
+        query: str,
+        context: Optional[str] = None,
+        session_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
         """Extract ALL customer IDs and get their data - simple SQL IN query"""
         try:
             customer_ids = []
-            
+
             # First, try to extract from current query
-            customer_id_pattern = r"(?:customer|cust|id)[_\s]*(?:id|is|:)?\s*([A-Z]*\d+)"
+            customer_id_pattern = (
+                r"(?:customer|cust|id)[_\s]*(?:id|is|:)?\s*([A-Z]*\d+)"
+            )
             matches = re.findall(customer_id_pattern, query, re.IGNORECASE)
 
             for match in set(matches):
                 try:
-                    numeric_id = ''.join(filter(str.isdigit, match))
+                    numeric_id = "".join(filter(str.isdigit, match))
                     if numeric_id:
                         customer_ids.append(int(numeric_id))
                 except ValueError:
                     continue
-            
+
             # If no customer ID in current query, check conversation context
             if not customer_ids:
-                customer_ids = self._extract_customer_info_from_context(context, session_id)
-            
+                customer_ids = self._extract_customer_info_from_context(
+                    context, session_id
+                )
+
             # Store IDs for this session even if found in current query
             if customer_ids and session_id:
                 if session_id not in self.conversation_context:
                     self.conversation_context[session_id] = {}
-                self.conversation_context[session_id]['customer_ids'] = customer_ids
-            
+                self.conversation_context[session_id]["customer_ids"] = customer_ids
+
             if not customer_ids:
                 return []
-                
+
             print(f"🔍 Customer IDs: {customer_ids}")
 
             # Single SQL query with IN clause - let database handle multiple IDs
@@ -151,7 +169,7 @@ class WorkflowEngine:
         except Exception as e:
             print(f"❌ Database error: {e}")
             return []  # Return empty list on error
-    
+
     def clear_session_context(self, session_id: str):
         """Clear stored context for a session"""
         if session_id in self.conversation_context:

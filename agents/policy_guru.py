@@ -149,7 +149,7 @@ class PolicyGuru(BaseAgent):
         except Exception as e:
             logger.error(f"Error in document retrieval: {str(e)}")
             raise
-    
+
     def retrieve_docs(self, query: str) -> List[Dict[str, Any]]:
         """
         Public method to retrieve documents (for testing).
@@ -157,14 +157,11 @@ class PolicyGuru(BaseAgent):
         """
         state = {"query": query}
         state = self._retrieve_docs(state)
-        
+
         results = []
         for doc, source in zip(state["filtered_docs"], state["filtered_sources"]):
-            results.append({
-                "content": doc,
-                "metadata": source
-            })
-        
+            results.append({"content": doc, "metadata": source})
+
         return results
 
     def _generate_answer(self, state: Dict[str, Any]) -> Dict[str, Any]:
@@ -207,7 +204,9 @@ class PolicyGuru(BaseAgent):
     def _handle_no_docs(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Handle case when no relevant documents are found with generic fallback."""
         # Provide generic fallback message with typical policy information
-        fallback_msg = self.prompts.get("fallback_message", self.prompts["no_docs_message"])
+        fallback_msg = self.prompts.get(
+            "fallback_message", self.prompts["no_docs_message"]
+        )
         state["answer"] = fallback_msg
         state["confidence"] = 0.3  # Low confidence for generic response
         return state
@@ -270,7 +269,7 @@ class PolicyGuru(BaseAgent):
                         "retry_count": retry_count,
                     },
                 )
-            
+
             # If retry also failed, provide generic fallback
             elif filtered_docs_count == 0 and retry_count > 0:
                 fallback_answer = self.prompts.get(
@@ -278,7 +277,7 @@ class PolicyGuru(BaseAgent):
                     "We couldn't find an exact policy for this scenario, but here's what typically applies: "
                     "For most loan-related queries, please refer to our standard policies regarding eligibility, "
                     "documentation, prepayment, and top-up options. For specific guidance, please contact our "
-                    "support team with your customer ID."
+                    "support team with your customer ID.",
                 )
                 return AgentResponse(
                     answer=fallback_answer,
@@ -308,7 +307,7 @@ class PolicyGuru(BaseAgent):
                             "retry_count": retry_count,
                         },
                     )
-                
+
                 return AgentResponse(
                     answer=policy_response.answer,
                     sources=final_state.get("filtered_sources", []),

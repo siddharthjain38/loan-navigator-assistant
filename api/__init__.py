@@ -1,6 +1,7 @@
 """
 API package initialization.
 """
+
 from pathlib import Path
 
 API_ROOT = Path(__file__).parent

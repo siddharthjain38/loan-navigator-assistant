@@ -1,6 +1,7 @@
 """
 Global constants for the loan-navigator-suite project.
 """
+
 from pathlib import Path
 
 # Base directory configuration

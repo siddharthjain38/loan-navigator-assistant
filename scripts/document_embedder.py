@@ -69,8 +69,9 @@ def create_vector_store(
     # Remove existing vector store if it exists
     if VECTOR_STORE_DIR.exists():
         import shutil
+
         shutil.rmtree(VECTOR_STORE_DIR)
-    
+
     # Create vector store directory
     VECTOR_STORE_DIR.parent.mkdir(parents=True, exist_ok=True)
     VECTOR_STORE_DIR.mkdir()
