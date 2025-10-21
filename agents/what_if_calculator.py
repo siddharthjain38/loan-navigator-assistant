@@ -292,37 +292,14 @@ class WhatIfCalculator(BaseAgent):
 
                 return AgentResponse(
                     answer=error_message,
-                    metadata={
-                        "whatif_fallback_flag": True,
-                        "validation_failed": True,
-                        "error_json": error_json,
-                        "errors": validation["errors"],
-                        "suggestions": validation.get("suggestions", []),
-                    },
+                    metadata={},
                 )
 
         # Enhanced prompt - let LLM handle 0, 1, or multiple customers intelligently
-        calculation_prompt = f"""
-        Process this EMI calculation request:
-        
-        Query: {query}
-        
-        Customer Data: {customer_data}
-        
-        Instructions:
-        - If customer_data is empty ([]): Process as general EMI calculation
-        - If customer_data has 1 record: Process for that specific customer with their current loan details
-        - If customer_data has multiple records: Process for all customers and provide comparison
-        - Use current loan amounts and interest rates from customer data when available
-        - If user wants to "decrease EMI", show options with longer tenures
-        - If user wants to "increase loan", show scenarios with higher amounts
-        - Handle any missing or invalid customer data gracefully
-        - Format response clearly for the number of customers involved
-        - Provide practical recommendations
-        
-        Calculate EMI scenarios for 5, 10, 15, 20, and 30 year tenures.
-        Always be helpful and format the response clearly.
-        """
+        calculation_prompt = self.prompts["customer_data_calculation"].format(
+            query=query,
+            customer_data=customer_data
+        )
 
         # Use structured LLM to get EMI scenarios - LLM handles everything!
         try:
@@ -383,13 +360,6 @@ Current EMI: ₹{customer.get('monthly_emi', 0):,.0f}
             answer=answer,
             metadata={
                 "scenarios": [scenario.dict() for scenario in emi_scenarios.scenarios],
-                "recommendation": emi_scenarios.recommendation,
-                "customer_count": len(customer_data) if customer_data else 0,
-                "customer_ids": (
-                    [c.get("customer_id") for c in customer_data]
-                    if customer_data
-                    else []
-                ),
             },
         )
 
@@ -418,15 +388,7 @@ Current EMI: ₹{customer.get('monthly_emi', 0):,.0f}
 
     def _process_string_query(self, query: str) -> AgentResponse:
         """Process natural language string queries"""
-        prompt = f"""
-        Natural Language Query: {query}
-        
-        Extract loan amount and interest rate from this query.
-        If not clearly specified, use reasonable defaults (₹10,00,000 and 10% interest).
-        
-        Calculate EMI scenarios for 5, 10, 15, 20, and 30 year tenures.
-        Clearly state what parameters you used for the calculation.
-        """
+        prompt = self.prompts["natural_language_calculation"].format(query=query)
 
         try:
             emi_scenarios: EMIScenarios = self.structured_llm.invoke(prompt)
@@ -478,8 +440,6 @@ Current EMI: ₹{customer.get('monthly_emi', 0):,.0f}
                     "scenarios": [
                         scenario.dict() for scenario in emi_scenarios.scenarios
                     ],
-                    "recommendation": emi_scenarios.recommendation,
-                    "structured_output": True,
                 },
             )
 

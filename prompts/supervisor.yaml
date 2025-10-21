@@ -128,3 +128,19 @@ multi_domain_combination: |
   
   Do not mention "multiple agents", "systems", or technical implementation details.
   Just provide a natural, integrated answer as if from a single knowledgeable assistant.
+
+# Query enhancement prompt for retry attempts
+query_enhancement: |
+  Original query needs more context to find relevant policies.
+  
+  Original Query: {query}
+  
+  Conversation Context: {context}
+  
+  Please reformulate this query to be more specific and include:
+  - Loan type (if mentioned in context)
+  - Customer profile details (if available)
+  - Specific policy area being asked about
+  - Any additional context that would help retrieve relevant policies
+  
+  Return ONLY the reformulated query, nothing else.

@@ -36,3 +36,16 @@ fallback_message: |
 
 default_error_response: |
   I couldn't process your query.
+
+customer_data_enhancement: |
+  Policy Question: {query}
+  
+  Customer Data: {customer_data}
+  
+  Instructions:
+  - If single customer: Provide personalized policy information for their situation
+  - If multiple customers: Provide policy information relevant to all customers
+  - Consider loan amounts, interest rates, and status in policy guidance
+  - Handle missing customer data gracefully
+  
+  Please provide comprehensive policy information considering the customer context.

@@ -204,9 +204,8 @@ class PolicyGuru(BaseAgent):
     def _handle_no_docs(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Handle case when no relevant documents are found with generic fallback."""
         # Provide generic fallback message with typical policy information
-        fallback_msg = self.prompts.get(
-            "fallback_message", self.prompts["no_docs_message"]
-        )
+        """Generate fallback answer when no relevant documents found"""
+        fallback_msg = self.prompts["fallback_message"]
         state["answer"] = fallback_msg
         state["confidence"] = 0.3  # Low confidence for generic response
         return state
@@ -222,19 +221,10 @@ class PolicyGuru(BaseAgent):
 
                 # Enhance query with customer context if available
                 if customer_data:
-                    enhanced_query = f"""
-                    Policy Question: {query}
-                    
-                    Customer Data: {customer_data}
-                    
-                    Instructions:
-                    - If single customer: Provide personalized policy information for their situation
-                    - If multiple customers: Provide policy information relevant to all customers
-                    - Consider loan amounts, interest rates, and status in policy guidance
-                    - Handle missing customer data gracefully
-                    
-                    Please provide comprehensive policy information considering the customer context.
-                    """
+                    enhanced_query = self.prompts["customer_data_enhancement"].format(
+                        query=query,
+                        customer_data=customer_data
+                    )
                     query = enhanced_query
             else:
                 # Handle legacy string input
@@ -264,28 +254,18 @@ class PolicyGuru(BaseAgent):
                     answer="",
                     metadata={
                         "needs_query_enhancement": True,
-                        "reason": "No documents with sufficient similarity found (cosine < 0.75)",
-                        "original_query": query,
                         "retry_count": retry_count,
                     },
                 )
 
             # If retry also failed, provide generic fallback
             elif filtered_docs_count == 0 and retry_count > 0:
-                fallback_answer = self.prompts.get(
-                    "fallback_message",
-                    "We couldn't find an exact policy for this scenario, but here's what typically applies: "
-                    "For most loan-related queries, please refer to our standard policies regarding eligibility, "
-                    "documentation, prepayment, and top-up options. For specific guidance, please contact our "
-                    "support team with your customer ID.",
-                )
+                fallback_answer = self.prompts["fallback_message"]
                 return AgentResponse(
                     answer=fallback_answer,
                     metadata={
                         "is_fallback": True,
-                        "confidence": 0.3,
                         "retry_count": retry_count,
-                        "reason": "Generic fallback after retry failed",
                     },
                 )
 
@@ -300,10 +280,6 @@ class PolicyGuru(BaseAgent):
                         sources=final_state.get("filtered_sources", []),
                         metadata={
                             "needs_query_enhancement": True,
-                            "reason": f"Low confidence score: {policy_response.confidence}",
-                            "policy_type": policy_response.policy_type,
-                            "confidence": policy_response.confidence,
-                            "relevant_sections": policy_response.relevant_sections,
                             "retry_count": retry_count,
                         },
                     )
@@ -312,10 +288,6 @@ class PolicyGuru(BaseAgent):
                     answer=policy_response.answer,
                     sources=final_state.get("filtered_sources", []),
                     metadata={
-                        "policy_type": policy_response.policy_type,
-                        "confidence": policy_response.confidence,
-                        "relevant_sections": policy_response.relevant_sections,
-                        "structured_output": True,
                         "retry_count": retry_count,
                     },
                 )
@@ -326,7 +298,6 @@ class PolicyGuru(BaseAgent):
                     ),
                     sources=final_state.get("filtered_sources", []),
                     metadata={
-                        "structured_output": False,
                         "retry_count": retry_count,
                     },
                 )

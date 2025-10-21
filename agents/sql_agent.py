@@ -24,22 +24,8 @@ class SQLAgent(BaseAgent):
         # Create structured LLM for SQL query generation
         self.structured_llm = self.llm.with_structured_output(SQLQueryResult)
 
-        # Known valid table and column names for validation
+        # Known valid table names for validation
         self.valid_tables = ["loan_data"]
-        self.valid_columns = [
-            "loan_id",
-            "customer_id",
-            "loan_amount",
-            "interest_rate",
-            "tenure_months",
-            "start_date",
-            "monthly_emi",
-            "amount_paid",
-            "next_due_date",
-            "status",
-            "topup_eligible",
-            "prepayment_limit",
-        ]
 
     def _generate_sql(self, query: str) -> SQLQueryResult:
         """Generate SQL query from natural language with structured output."""
@@ -200,47 +186,19 @@ class SQLAgent(BaseAgent):
         context: Optional[str] = None,
     ) -> str:
         """Generate guided clarification prompt for failed queries."""
-        clarification_prompts = {
-            "zero_results": f"""
-I couldn't find any data matching your query: "{original_query}"
-
-This might be because:
-• The customer ID doesn't exist in our database
-• The date range specified has no records
-• The status or filter criteria don't match any loans
-
-Could you please:
-1. Verify the customer ID is correct
-2. Check if you meant a different date range
-3. Confirm the loan status you're looking for (active, closed, etc.)
-
-Available loan statuses: Active, Closed, Pending
-""",
-            "validation_failed": f"""
-I had trouble understanding your query: "{original_query}"
-
-Could you please rephrase it more specifically? For example:
-• "Show me loan details for customer 1900"
-• "What is the current EMI for loan ID 2001?"
-• "List all active loans"
-• "Show payment history for customer 1900"
-""",
-            "sql_error": f"""
-I encountered an issue processing your query: "{original_query}"
-
-Please try:
-• Using specific customer IDs or loan IDs
-• Simplifying your query
-• Asking about one aspect at a time (e.g., EMI, loan amount, status)
-
-Example queries that work well:
-• "What is my current loan amount?" (if customer ID is known)
-• "Show details for loan 2001"
-• "List all loans for customer 1900"
-""",
+        # Map error types to YAML prompt keys
+        prompt_keys = {
+            "zero_results": "zero_results_clarification",
+            "validation_failed": "validation_failed_clarification",
+            "sql_error": "sql_error_clarification",
         }
-
-        return clarification_prompts.get(error_type, clarification_prompts["sql_error"])
+        
+        # Get the appropriate prompt from YAML
+        prompt_key = prompt_keys.get(error_type, "sql_error_clarification")
+        clarification_template = self.prompts[prompt_key]
+        
+        # Format the prompt with the original query
+        return clarification_template.format(original_query=original_query)
 
     def process(
         self, query: Union[str, Dict[str, Any]], retry_count: int = 0
@@ -295,10 +253,6 @@ Example queries that work well:
                         answer=clarification,
                         metadata={
                             "sql_fallback_flag": True,
-                            "needs_clarification": True,
-                            "reason": "SQL validation failed",
-                            "validation_issues": validation["issues"],
-                            "original_query": nlp_query,
                             "retry_count": retry_count,
                         },
                     )
@@ -309,7 +263,6 @@ Example queries that work well:
                         metadata={
                             "is_fallback": True,
                             "retry_count": retry_count,
-                            "reason": "SQL validation failed after retry",
                         },
                     )
 
@@ -327,9 +280,6 @@ Example queries that work well:
                         answer=clarification,
                         metadata={
                             "sql_fallback_flag": True,
-                            "needs_clarification": True,
-                            "reason": f"SQL execution error: {str(exec_error)}",
-                            "original_query": nlp_query,
                             "retry_count": retry_count,
                         },
                     )
@@ -339,7 +289,6 @@ Example queries that work well:
                         metadata={
                             "is_fallback": True,
                             "retry_count": retry_count,
-                            "reason": "SQL execution failed after retry",
                         },
                     )
 
@@ -356,11 +305,7 @@ Example queries that work well:
                         answer=clarification,
                         metadata={
                             "sql_fallback_flag": True,
-                            "needs_clarification": True,
-                            "reason": "Zero results returned, customer ID may be needed",
-                            "original_query": nlp_query,
                             "retry_count": retry_count,
-                            "sql_executed": sql_result.query,
                         },
                     )
                 else:
@@ -369,9 +314,7 @@ Example queries that work well:
                     return AgentResponse(
                         answer=answer,
                         metadata={
-                            "zero_results": True,
                             "retry_count": retry_count,
-                            "sql_executed": sql_result.query,
                         },
                     )
 
@@ -394,9 +337,6 @@ Example queries that work well:
                     }
                 ],
                 metadata={
-                    "sql_confidence": sql_result.confidence,
-                    "estimated_rows": sql_result.estimated_rows,
-                    "actual_rows": len(results),
                     "retry_count": retry_count,
                 },
             )

@@ -125,21 +125,10 @@ class Supervisor(BaseAgent):
         self, query: str, context: Optional[str], session_id: Optional[str]
     ) -> str:
         """Enhance query with additional context for retry attempts."""
-        enhancement_prompt = f"""
-        Original query needs more context to find relevant policies.
-        
-        Original Query: {query}
-        
-        Conversation Context: {context if context else "No conversation history"}
-        
-        Please reformulate this query to be more specific and include:
-        - Loan type (if mentioned in context)
-        - Customer profile details (if available)
-        - Specific policy area being asked about
-        - Any additional context that would help retrieve relevant policies
-        
-        Return ONLY the reformulated query, nothing else.
-        """
+        enhancement_prompt = self.prompts["query_enhancement"].format(
+            query=query,
+            context=context if context else "No conversation history"
+        )
 
         try:
             enhanced = self.llm.invoke(enhancement_prompt).content.strip()
@@ -173,17 +162,7 @@ class Supervisor(BaseAgent):
         self, query: str, routing_decision: RoutingDecision, context: Optional[str]
     ) -> AgentResponse:
         """Handle ambiguous queries by requesting clarification from user"""
-        clarification_prompt = self.prompts.get(
-            "ambiguous_query_clarification",
-            """The query "{query}" is ambiguous. 
-            
-            I can help you with:
-            1. **Loan Data Queries**: View your loan details, EMI, outstanding balance
-            2. **EMI Calculations**: Calculate EMI for different loan amounts and tenures
-            3. **Loan Policies**: Eligibility, documentation, prepayment rules
-            
-            Could you please clarify what you're looking for?""",
-        )
+        clarification_prompt = self.prompts["ambiguous_query_clarification"]
 
         formatted_prompt = clarification_prompt.format(
             query=query,
@@ -205,28 +184,7 @@ class Supervisor(BaseAgent):
 
     def _detect_multi_domain_query(self, query: str, context: Optional[str]) -> dict:
         """Detect if query spans multiple domains (SQL + Calculator + Policy)"""
-        detection_prompt = self.prompts.get(
-            "multi_domain_detection",
-            """Analyze if this query requires multiple agents:
-            
-            Query: {query}
-            Context: {context}
-            
-            Agents available:
-            - SQL_AGENT: Customer data lookup
-            - WHAT_IF_CALCULATOR: EMI calculations
-            - POLICY_GURU: Policy information
-            
-            Does this query need multiple agents? List which ones and why.
-            
-            Examples of multi-domain:
-            - "Show my loan and calculate what if I prepay 1 lakh" (SQL + Calculator)
-            - "What's my eligibility and current loan status" (Policy + SQL)
-            - "Calculate EMI and tell me prepayment rules" (Calculator + Policy)
-            
-            Return JSON: {{"is_multi_domain": true/false, "domains": ["agent1", "agent2"], "reasoning": "..."}}
-            """,
-        )
+        detection_prompt = self.prompts["multi_domain_detection"]
 
         formatted_prompt = detection_prompt.format(
             query=query, context=context if context else "No context"
@@ -301,23 +259,7 @@ class Supervisor(BaseAgent):
 
     def _combine_multi_domain_results(self, query: str, results: list) -> str:
         """Combine multiple agent results into a coherent response"""
-        combination_prompt = self.prompts.get(
-            "multi_domain_combination",
-            """User asked: {query}
-            
-            We gathered information from multiple systems:
-            
-            {results}
-            
-            Please combine these results into a single, coherent response that:
-            1. Directly answers the user's question
-            2. Integrates information from all sources
-            3. Is clear and well-organized
-            4. Maintains professional tone
-            
-            Do not mention "multiple agents" or technical details - just provide the integrated answer.
-            """,
-        )
+        combination_prompt = self.prompts["multi_domain_combination"]
 
         results_text = "\n\n".join(
             [f"**{r['agent']}**:\n{r['answer']}" for r in results]

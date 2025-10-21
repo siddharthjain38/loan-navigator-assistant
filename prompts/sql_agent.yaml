@@ -44,3 +44,41 @@ format_prompt: |
   6. Use emojis (📊, 📋, 💰, ✅) for better readability
 
   Make it easy to read and understand. Include all fields from the data in an organized way.
+
+# Clarification prompts for different error scenarios
+zero_results_clarification: |
+  I couldn't find any data matching your query: "{original_query}"
+
+  This might be because:
+  • The customer ID doesn't exist in our database
+  • The date range specified has no records
+  • The status or filter criteria don't match any loans
+
+  Could you please:
+  1. Verify the customer ID is correct
+  2. Check if you meant a different date range
+  3. Confirm the loan status you're looking for (active, closed, etc.)
+
+  Available loan statuses: Active, Closed, Pending
+
+validation_failed_clarification: |
+  I had trouble understanding your query: "{original_query}"
+
+  Could you please rephrase it more specifically? For example:
+  • "Show me loan details for customer 1900"
+  • "What is the current EMI for loan ID 2001?"
+  • "List all active loans"
+  • "Show payment history for customer 1900"
+
+sql_error_clarification: |
+  I encountered an issue processing your query: "{original_query}"
+
+  Please try:
+  • Using specific customer IDs or loan IDs
+  • Simplifying your query
+  • Asking about one aspect at a time (e.g., EMI, loan amount, status)
+
+  Example queries that work well:
+  • "What is my current loan amount?" (if customer ID is known)
+  • "Show details for loan 2001"
+  • "List all loans for customer 1900"
