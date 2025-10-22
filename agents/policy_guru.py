@@ -12,6 +12,8 @@ from langchain_chroma import Chroma
 from langgraph.graph import StateGraph, END
 from core.factory import get_embedding_llm
 from core.routing_models import PolicyResponse
+from core.telemetry_decorator import track_agent
+from core.telemetry import telemetry
 from pydantic import ValidationError
 
 
@@ -123,6 +125,7 @@ class PolicyGuru(BaseAgent):
             # Calculate similarity and filter
             filtered_docs = []
             filtered_sources = []
+            similarities = []  # Track similarity scores
 
             for doc in docs:
                 # Get document embedding
@@ -138,6 +141,14 @@ class PolicyGuru(BaseAgent):
                 if similarity >= self.similarity_threshold:
                     filtered_docs.append(doc.page_content)
                     filtered_sources.append(doc.metadata)
+                    similarities.append(similarity)
+
+            # Log citation quality to telemetry
+            avg_similarity = sum(similarities) / len(similarities) if similarities else 0.0
+            telemetry.log_citations(
+                num_citations=len(filtered_docs),
+                avg_similarity=avg_similarity,
+            )
 
             # Update state
             state["filtered_docs"] = filtered_docs
@@ -206,6 +217,7 @@ class PolicyGuru(BaseAgent):
         state["answer"] = self.prompts["fallback_message"]
         return state
 
+    @track_agent("policy_guru")
     def process(self, query_input, retry_count: int = 0) -> AgentResponse:
         """Process a user query about loan policies with flexible input handling and retry logic."""
         try:

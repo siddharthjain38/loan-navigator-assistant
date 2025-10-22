@@ -1,6 +1,7 @@
 from typing import Dict, Any, Union, List, Optional
 from .base_agent import BaseAgent, AgentResponse
 from core.routing_models import EMICalculation, EMIScenarios, LoanInputValidation
+from core.telemetry_decorator import track_agent
 from pydantic import ValidationError
 import json
 
@@ -57,6 +58,7 @@ class WhatIfCalculator(BaseAgent):
 
             return False, error_message
 
+    @track_agent("what_if_calculator")
     def process(
         self, query: Union[str, Dict[Any, Any]], retry_count: int = 0
     ) -> AgentResponse:

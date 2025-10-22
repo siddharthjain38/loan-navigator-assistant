@@ -8,7 +8,8 @@ from typing import Optional, List, Dict
 from datetime import datetime
 import uuid
 
-from agents.supervisor import Supervisor  # ✅ Changed from SupervisorAgent
+from agents.supervisor import Supervisor
+from core.telemetry import telemetry
 
 router = APIRouter()
 
@@ -40,6 +41,8 @@ async def chat(request: ChatRequest):
     # Initialize conversation if new session
     if session_id not in conversations:
         conversations[session_id] = []
+        # Start MLflow tracking for this session
+        telemetry.start_session(session_id)
 
     # Add user message to history
     conversations[session_id].append(
@@ -89,6 +92,8 @@ async def get_history(session_id: str):
 async def clear_history(session_id: str):
     """Clear conversation history for a session."""
     if session_id in conversations:
+        # End MLflow tracking for this session
+        telemetry.end_session()
         del conversations[session_id]
 
     return {"message": "History cleared", "session_id": session_id}

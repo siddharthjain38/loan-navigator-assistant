@@ -7,6 +7,7 @@ from typing import Optional
 from agents.base_agent import BaseAgent, AgentResponse
 from core.factory import get_workflow_engine
 from core.routing_models import RoutingDecision, AgentType
+from core.telemetry_decorator import track_agent
 
 
 class Supervisor(BaseAgent):
@@ -17,6 +18,7 @@ class Supervisor(BaseAgent):
         self.workflow_engine = get_workflow_engine()
         self.structured_llm = self.llm.with_structured_output(RoutingDecision)
 
+    @track_agent("supervisor")
     def process(
         self,
         query: str,

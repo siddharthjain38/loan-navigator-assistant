@@ -10,6 +10,7 @@ import re
 from .base_agent import BaseAgent, AgentResponse
 from core.routing_models import SQLQueryResult
 from core.constants import LOAN_DB_PATH
+from core.telemetry_decorator import track_agent
 from pydantic import ValidationError
 
 
@@ -189,6 +190,7 @@ class SQLAgent(BaseAgent):
         # Format the prompt with the original query
         return clarification_template.format(original_query=original_query)
 
+    @track_agent("sql_agent")
     def process(
         self, query: Union[str, Dict[str, Any]], retry_count: int = 0
     ) -> AgentResponse:
