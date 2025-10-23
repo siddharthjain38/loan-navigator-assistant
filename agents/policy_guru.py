@@ -46,7 +46,7 @@ class PolicyGuru(BaseAgent):
         """Initialize PolicyGuru."""
         super().__init__("policy_guru", temperature=0)
         self.embedding = get_embedding_llm()
-        self.similarity_threshold = 0.75
+        self.similarity_threshold = 0.5
 
         # Create structured LLM for policy responses
         self.structured_llm = self.llm.with_structured_output(PolicyResponse)
@@ -144,7 +144,9 @@ class PolicyGuru(BaseAgent):
                     similarities.append(similarity)
 
             # Log citation quality to telemetry
-            avg_similarity = sum(similarities) / len(similarities) if similarities else 0.0
+            avg_similarity = (
+                sum(similarities) / len(similarities) if similarities else 0.0
+            )
             telemetry.log_citations(
                 num_citations=len(filtered_docs),
                 avg_similarity=avg_similarity,

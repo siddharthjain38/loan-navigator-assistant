@@ -10,3 +10,5 @@ dataset/Loan_Policy-2020-1.pdf
 # MLflow
 mlruns/
 mlartifacts/
+
+logs/

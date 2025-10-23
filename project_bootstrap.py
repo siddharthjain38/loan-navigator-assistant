@@ -1,26 +1,29 @@
 import os
 import sys
 import subprocess
+import shutil
+from pathlib import Path
 
 
 def main():
-    project_root = os.path.dirname(__file__)
-    cache_dir = os.path.join(project_root, ".pycache")
+    # Import after path setup
+    from core.constants import BASE_DIR, DATASET_DIR, LOAN_DB_PATH
+    
+    # Create loan_data directory
+    LOAN_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Copy database file
+    source_db = DATASET_DIR / "LoanDB_BlueLoans4all.sqlite"
+    if source_db.exists() and not LOAN_DB_PATH.exists():
+        shutil.copy2(source_db, LOAN_DB_PATH)
+    
+    # Setup pycache
+    cache_dir = BASE_DIR / ".pycache"
+    cache_dir.mkdir(exist_ok=True)
+    os.environ["PYTHONPYCACHEPREFIX"] = str(cache_dir)
 
-    # Ensure centralized .pycache exists
-    os.makedirs(cache_dir, exist_ok=True)
-
-    # Set env var before running target script
-    os.environ["PYTHONPYCACHEPREFIX"] = cache_dir
-
-    # Define which script to run (change this as needed)
-    target_module = "scripts.document_embedder"
-
-    print(f"Using centralized pycache at: {cache_dir}")
-    print(f"Running module: {target_module}")
-
-    # Launch the module with the current environment
-    subprocess.run([sys.executable, "-m", target_module], env=os.environ)
+    # Run document embedder
+    subprocess.run([sys.executable, "-m", "scripts.document_embedder"], env=os.environ)
 
 
 if __name__ == "__main__":

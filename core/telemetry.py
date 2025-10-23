@@ -1,11 +1,12 @@
 """
-Simple MLflow telemetry tracker for LLM metrics.
+Simple MLflow telemetry tracker for LLM metrics and traces.
 
 Tracks:
 - Token usage (prompt + completion)
 - Fallback ratio per agent
 - Citation quality (Policy Guru)
 - Response times
+- Detailed execution traces
 
 KISS principle: One class, clear purpose, minimal complexity.
 """
@@ -13,22 +14,23 @@ KISS principle: One class, clear purpose, minimal complexity.
 import mlflow
 import os
 from typing import Optional, Dict, Any
-from datetime import datetime
-from dotenv import load_dotenv
-
-# Load environment variables from .env
-load_dotenv()
+from core.constants import MLFLOW_EXPERIMENT_NAME
 
 
 class LLMTelemetry:
     """Simple LLM telemetry tracker using MLflow."""
 
-    def __init__(self, experiment_name: str = "loan-navigator-llm"):
+    def __init__(self):
         """Initialize telemetry tracker."""
-        # Setup MLflow
-        mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", "./mlruns"))
-        mlflow.set_experiment(experiment_name)
-        
+        # Read MLFLOW_TRACKING_URI from environment (loaded from .env or set by constants)
+        tracking_uri = os.getenv("MLFLOW_TRACKING_URI")
+        if tracking_uri:
+            mlflow.set_tracking_uri(tracking_uri)
+        mlflow.set_experiment(MLFLOW_EXPERIMENT_NAME)
+
+        # Enable MLflow tracing
+        mlflow.tracing.enable()
+
         self.run_id: Optional[str] = None
         self.step = 0  # Step counter for metrics
 
@@ -55,7 +57,7 @@ class LLMTelemetry:
     ):
         """
         Log LLM call metrics.
-        
+
         Args:
             agent_name: Name of agent (sql_agent, policy_guru, etc.)
             prompt_tokens: Tokens in prompt
@@ -67,15 +69,18 @@ class LLMTelemetry:
             return
 
         self.step += 1
-        
+
         # Log basic metrics
-        mlflow.log_metrics({
-            f"{agent_name}.tokens.prompt": prompt_tokens,
-            f"{agent_name}.tokens.completion": completion_tokens,
-            f"{agent_name}.tokens.total": prompt_tokens + completion_tokens,
-            f"{agent_name}.response_time": response_time,
-            f"{agent_name}.fallback": 1 if is_fallback else 0,
-        }, step=self.step)
+        mlflow.log_metrics(
+            {
+                f"{agent_name}.tokens.prompt": prompt_tokens,
+                f"{agent_name}.tokens.completion": completion_tokens,
+                f"{agent_name}.tokens.total": prompt_tokens + completion_tokens,
+                f"{agent_name}.response_time": response_time,
+                f"{agent_name}.fallback": 1 if is_fallback else 0,
+            },
+            step=self.step,
+        )
 
     def log_citations(
         self,
@@ -84,7 +89,7 @@ class LLMTelemetry:
     ):
         """
         Log citation quality metrics.
-        
+
         Args:
             num_citations: Number of citations retrieved
             avg_similarity: Average similarity score
@@ -92,10 +97,13 @@ class LLMTelemetry:
         if not self.run_id:
             return
 
-        mlflow.log_metrics({
-            "policy_guru.citations.count": num_citations,
-            "policy_guru.citations.avg_similarity": avg_similarity,
-        }, step=self.step)
+        mlflow.log_metrics(
+            {
+                "policy_guru.citations.count": num_citations,
+                "policy_guru.citations.avg_similarity": avg_similarity,
+            },
+            step=self.step,
+        )
 
     def log_error(self, agent_name: str, error_type: str):
         """Log error occurrence."""
