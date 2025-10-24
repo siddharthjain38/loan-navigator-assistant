@@ -12,7 +12,7 @@ load_dotenv()
 
 # Skip if no API credentials
 pytestmark = pytest.mark.skipif(
-    not os.getenv("AZURE_OPENAI_API_KEY"), reason="Requires Azure OpenAI credentials"
+    not os.getenv("AZURE-OPENAI-API-KEY"), reason="Requires Azure OpenAI credentials"
 )
 
 

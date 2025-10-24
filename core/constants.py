@@ -2,6 +2,11 @@
 Global constants for the loan-navigator-suite project.
 """
 
+"""
+Global constants for the loan-navigator-suite project.
+"""
+
+
 from pathlib import Path
 from core.keyvault import get_secret
 from core.config import (
@@ -32,7 +37,7 @@ CHUNK_OVERLAP = 500
 
 # Azure OpenAI settings (Sensitive - from Key Vault)
 AZURE_OPENAI_ENDPOINT = get_secret("AZURE-OPENAI-ENDPOINT")
-AZURE_OPENAI_API_KEY = get_secret("AZURE-OPENAI-API-KEY")
+AZURE_OPENAI_API_KEY = get_secret("AZURE-OPENAI-API-KEY")  # Use dash version to match Key Vault
 
 # Model configuration
 EMBEDDING_MODEL = "text-embedding-3-small"

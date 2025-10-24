@@ -1,3 +1,5 @@
+# --- Ensure Key Vault secrets are mapped to env vars before anything else ---
+import project_bootstrap
 """
 Main FastAPI application entry point.
 """
@@ -29,6 +31,7 @@ from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv(dotenv_path=project_root / ".env")
+
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

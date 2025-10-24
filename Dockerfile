@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y \
 
 # Copy and install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt supervisor
+RUN pip install --no-cache-dir --default-timeout=100 -r requirements.txt supervisor
 
 # Copy application code
 COPY . .
@@ -27,5 +27,5 @@ RUN mkdir -p database/vector_store database/loan_data logs .pycache
 # Expose FastAPI and Streamlit ports only
 EXPOSE 8000 8501
 
-# Start FastAPI and Streamlit using supervisor
-CMD ["/bin/bash", "-c", "python project_bootstrap.py && supervisord -n -c supervisord.conf"]
+# Start FastAPI and Streamlit using supervisor (bootstrap temporarily disabled for debugging)
+CMD ["/bin/bash", "-c", "supervisord -n -c supervisord.conf"]
