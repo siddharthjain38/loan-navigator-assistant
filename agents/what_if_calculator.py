@@ -191,20 +191,23 @@ Current EMI: ₹{customer.get('monthly_emi', 0):,.0f}
         # Add EMI scenarios
         answer += f"EMI Calculation Results:\n\n"
 
-        for i, scenario in enumerate(emi_scenarios.scenarios, 1):
+        scenarios = emi_scenarios.scenarios
+        for i, scenario in enumerate(scenarios, 1):
             years = scenario.tenure_months // 12
             answer += f"{i}. {years} Year(s) ({scenario.tenure_months} months):\n"
             answer += f"   • Monthly EMI: ₹{scenario.monthly_emi:,.0f}\n"
             answer += f"   • Total Interest: ₹{scenario.total_interest:,.0f}\n"
             answer += f"   • Total Amount: ₹{scenario.total_amount:,.0f}\n\n"
 
-        answer += f"Summary: {emi_scenarios.summary}\n"
-        answer += f"Recommendation: {emi_scenarios.recommendation}"
+        # Only show summary and recommendation if multiple scenarios are present
+        if len(scenarios) > 1:
+            answer += f"Summary: {emi_scenarios.summary}\n"
+            answer += f"Recommendation: {emi_scenarios.recommendation}"
 
         return AgentResponse(
             answer=answer,
             metadata={
-                "scenarios": [scenario.dict() for scenario in emi_scenarios.scenarios],
+                "scenarios": [scenario.dict() for scenario in scenarios],
             },
         )
 
